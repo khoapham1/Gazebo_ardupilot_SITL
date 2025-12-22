@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Select points demo (Leaflet + Socket.IO)</title>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Socket.IO (served by Flask-SocketIO) -->
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    #topbar { display: flex; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
+    #map { width: 100%; height: calc(100vh - 100px); }
+    button { padding: 8px 12px; cursor: pointer; }
+    .pill { padding: 6px 10px; border: 1px solid #ddd; border-radius: 999px; }
+    .hint { color: #555; font-size: 14px; }
+    #point-info { padding: 10px; background: #f9f9f9; border-top: 1px solid #ddd; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <button id="btnFly">Fly Selected Points (POST /fly_selected)</button>
+    <button id="btnUndo">Undo last point</button>
+    <button id="btnClear">Clear points</button>
+    <div class="pill">Selected: <span id="count">0</span></div>
+    <div class="hint">Click trên map để chọn điểm (có thể kéo thả). Server emit planned_path để vẽ đường xanh.</div>
+  </div>
+  <div id="map"></div>
+  <div id="point-info">Selected Points: None</div>
+  <script>
+    // 1) Tạo map
+    const map = L.map('map').setView([10.7769, 106.7009], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 2) Socket.IO
+    const socket = io();
+    let plannedPolyline = null;
+    socket.on('planned_path', (data) => {
+      const waypoints = (data && data.waypoints) ? data.waypoints : [];
+      if (plannedPolyline) { map.removeLayer(plannedPolyline); plannedPolyline = null; }
+      if (waypoints.length > 0) {
+        plannedPolyline = L.polyline(waypoints, { color: 'blue', weight: 4 }).addTo(map);
+        map.fitBounds(plannedPolyline.getBounds(), { padding: [20, 20] });
+      }
+    });
+    // Telemetry demo (đường đỏ đã bay)
+    let telemetryPolyline = null;
+    const telemetryPoints = [];
+    socket.on('telemetry', (t) => {
+      if (!t || typeof t.lat !== 'number' || typeof t.lon !== 'number') return;
+      telemetryPoints.push([t.lat, t.lon]);
+      if (telemetryPoints.length > 200) telemetryPoints.shift();
+      if (telemetryPolyline) map.removeLayer(telemetryPolyline);
+      telemetryPolyline = L.polyline(telemetryPoints, { color: 'red', weight: 3 }).addTo(map);
+    });
+
+    // 3) Select points
+    let selectedPoints = []; // [{lat, lon, number}]
+    let pointMarkers = [];   // markers để clear/undo
+    let pathPolyline = null; // đường nối xanh dương
+    function updateCountAndInfo() {
+      document.getElementById('count').textContent = selectedPoints.length;
+      const pointsText = selectedPoints.length > 0 ? 
+        selectedPoints.map(p => `Point ${p.number}: Lat ${p.lat.toFixed(6)}, Lon ${p.lon.toFixed(6)}`).join('<br>') : 
+        'None';
+      document.getElementById('point-info').innerHTML = 'Selected Points:<br>' + pointsText;
+    }
+    function redrawPath() {
+      if (pathPolyline) { map.removeLayer(pathPolyline); pathPolyline = null; }
+      if (selectedPoints.length >= 2) {
+        const latlngs = selectedPoints.map(p => [p.lat, p.lon]);
+        pathPolyline = L.polyline(latlngs, { color: 'blue', dashArray: '6 6', weight: 3 }).addTo(map);
+      }
+    }
+    map.on('click', (e) => {
+      const lat = e.latlng.lat;
+      const lon = e.latlng.lng;
+      const pointNumber = selectedPoints.length + 1;
+      selectedPoints.push({ lat, lon, number: pointNumber });
+      const marker = L.marker([lat, lon], { draggable: true }).addTo(map)
+        .bindPopup(`Point ${pointNumber}<br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`);
+      marker.on('dragend', (ev) => {
+        const newLatLng = ev.target.getLatLng();
+        const idx = selectedPoints.findIndex(p => p.number === pointNumber);
+        if (idx !== -1) {
+          selectedPoints[idx].lat = newLatLng.lat;
+          selectedPoints[idx].lon = newLatLng.lng;
+          marker.setPopupContent(`Point ${pointNumber}<br>Lat: ${newLatLng.lat.toFixed(6)}<br>Lon: ${newLatLng.lng.toFixed(6)}`);
+          redrawPath();
+          updateCountAndInfo();
+        }
+      });
+      pointMarkers.push(marker);
+      redrawPath();
+      updateCountAndInfo();
+    });
+
+    // 4) Buttons
+    document.getElementById('btnUndo').addEventListener('click', () => {
+      if (selectedPoints.length === 0) return;
+      selectedPoints.pop();
+      const m = pointMarkers.pop();
+      if (m) map.removeLayer(m);
+      redrawPath();
+      updateCountAndInfo();
+    });
+
+    document.getElementById('btnClear').addEventListener('click', async () => {
+      selectedPoints = [];
+      pointMarkers.forEach(m => map.removeLayer(m));
+      pointMarkers = [];
+      if (pathPolyline) { map.removeLayer(pathPolyline); pathPolyline = null; }
+      updateCountAndInfo();
+      // Optional: gửi clear đến server nếu cần
+      try { await fetch('/clear_selected', { method: 'POST' }); } catch (e) {}
+    });
+
+    document.getElementById('btnFly').addEventListener('click', async () => {
+      if (selectedPoints.length === 0) {
+        alert('Chưa chọn điểm nào trên map!');
+        return;
+      }
+      const res = await fetch('/fly_selected', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: selectedPoints.map(p => ({ lat: p.lat, lon: p.lon })) })  // Gửi chỉ lat/lon
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert('Server error: ' + (data.error || res.statusText));
+        return;
+      }
+      console.log('OK:', data);
+    });
+
+    updateCountAndInfo();  // Init
+  </script>
+</body>
+</html>

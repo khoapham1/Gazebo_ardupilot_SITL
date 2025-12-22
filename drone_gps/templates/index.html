@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Drone Control</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        :root{
+            --bg-main: #020617;
+            --bg-card: #0f172a;
+            --bg-soft: #111827;
+            --border-soft: #1f2937;
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --accent: #2563eb;
+            --accent-soft: #1d4ed8;
+            --danger: #dc2626;
+        }
+
+        *{ box-sizing: border-box; }
+
+        body{
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #1e293b 0, var(--bg-main) 45%);
+            color: var(--text-main);
+        }
+
+        header{
+            background: #020617;
+            border-bottom: 1px solid #1f2937;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1{ font-size: 18px; margin: 0; }
+        header span{ font-size: 12px; color: var(--text-muted); }
+
+        #top-status{
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #16a34a33;
+            color: #4ade80;
+            border: 1px solid #16a34a;
+        }
+
+        .main-container{ padding: 12px 16px 24px 16px; }
+
+        .row{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .card{
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 10px 12px 12px 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+            border: 1px solid var(--border-soft);
+        }
+
+        .card-half{
+            flex: 1 1 320px;
+        }
+
+        .left-camera{ flex: 1 1 360px; }
+        .right-map{ flex: 2 1 460px; }
+
+        .section-title{
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        #map{
+            height: 400px;
+            width: 100%;
+            background-color: #020617;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #camera-container{ position: relative; display: inline-block; }
+
+        #live-camera{
+            width: 640px;
+            height: 480px;
+            cursor: pointer;
+            border-radius: 8px;
+            background: #000;
+            object-fit: cover;
+            border: 1px solid #1f2937;
+        }
+
+        #zoom-btn{
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(15,23,42,0.85);
+            color: var(--text-main);
+            border: 1px solid #1f2937;
+            border-radius: 999px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .controls{
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .controls button,
+        .controls select{
+            padding: 5px 9px;
+            font-size: 12px;
+            border-radius: 999px;
+            border: 1px solid var(--accent-soft);
+            background-color: var(--accent-soft);
+            color: #e5e7eb;
+            cursor: pointer;
+            transition: background-color .15s, transform .1s;
+        }
+        .controls button:hover{
+            background-color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .controls select{
+            background: var(--bg-soft);
+            border-color: var(--border-soft);
+            color: var(--text-main);
+        }
+
+        .controls button#land,
+        .controls button#stop-record{
+            border-color: var(--danger);
+            background: #b91c1c;
+        }
+        .controls button#land:hover,
+        .controls button#stop-record:hover{
+            background: #dc2626;
+        }
+
+        .info-panel{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .info-item{
+            background-color: var(--bg-card);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-soft);
+            font-size: 13px;
+        }
+        .info-item span{ color: #fbbf24; }
+
+        #point-info{
+            margin-top: 8px;
+            padding: 6px 8px;
+            background-color: var(--bg-soft);
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid var(--border-soft);
+        }
+
+        #compass-legs-input{
+            width: 100%;
+            height: 110px;
+            background: var(--bg-soft);
+            color: var(--text-main);
+            border-radius: 6px;
+            border: 1px solid var(--border-soft);
+            font-size: 12px;
+            padding: 6px;
+            resize: vertical;
+        }
+
+        pre{
+            background: var(--bg-soft);
+            color: var(--text-muted);
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 11px;
+            border: 1px dashed #1f2937;
+        }
+
+        input[type="text"]{
+            background: var(--bg-soft);
+            color: var(--text-main);
+            border-radius: 999px;
+            border: 1px solid var(--border-soft);
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .aruco-marker{
+            background-color: #f97316;
+            border: 2px solid #020617;
+            border-radius: 50%;
+            color: #020617;
+            font-weight: bold;
+            text-align: center;
+            line-height: 24px;
+        }
+
+        #recordings-modal{
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-card);
+            padding: 18px;
+            border-radius: 10px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+            z-index: 10000;
+            max-width: 480px;
+            width: 90%;
+            border: 1px solid var(--border-soft);
+        }
+        #recordings-modal h3{ margin: 0 0 8px 0; }
+        #recordings-list{
+            max-height: 260px;
+            overflow-y: auto;
+            margin: 8px 0;
+            font-size: 12px;
+        }
+
+        #modal-overlay{
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15,23,42,0.75);
+            z-index: 9999;
+        }
+
+        #close-recordings{
+            padding: 5px 10px;
+            background: var(--danger);
+            color: #fee2e2;
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>Drone Ground Station</h1>
+        <span>Live camera · Map · ArUco · Compass mission</span>
+    </div>
+    <div>Status: <span id="top-status">Connected</span></div>
+</header>
+
+<div class="main-container">
+    <!-- CAMERA + MAP -->
+    <div class="row">
+        <div class="card left-camera">
+            <div class="section-title">Live Camera</div>
+            <div id="camera-container">
+                <img id="live-camera"
+                     src="/video_feed"
+                     alt="Live UAV Camera"
+                     onerror="this.src='placeholder.jpg'; console.log('Stream error');">
+                <button id="zoom-btn">🔍 Phóng to</button>
+            </div>
+        </div>
+
+        <div class="card right-map">
+            <div class="section-title">Map</div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTROLS -->
+    <div class="card" style="margin-top: 10px;">
+        <div class="section-title">Flight & Map Controls</div>
+        <div class="controls" id="station-buttons">
+            <button id="clear">Clear points</button>
+            <button id="fly">Fly (test goal)</button>
+            <button id="fly-selected">Fly Selected Points</button>
+            <button id="land">Land</button>
+            <button id="guided">GUIDED</button>
+            <button id="arm">Arm Drone</button>
+            <button id="return-home">Return Home</button>
+
+            <button id="clear-aruco">Clear ArUco Markers</button>
+            <button id="start-aruco">Start ArUco</button>
+            <button id="stop-aruco">Stop ArUco</button>
+
+            <button id="start-record">Start Rec</button>
+            <button id="stop-record" disabled>Stop Rec</button>
+            <button id="view-recordings">Recordings</button>
+
+            <select id="speed-select">
+                <option value="0.7">0.7 m/s</option>
+                <option value="1.0">1.0 m/s</option>
+                <option value="2.0">2.0 m/s</option>
+                <option value="3.0">3.0 m/s</option>
+            </select>
+            <button id="set-speed">Set Speed</button>
+        </div>
+        <div id="point-info">Selected Points: None</div>
+    </div>
+
+    <!-- COMPASS + ARUCO SIDE BY SIDE -->
+    <div class="row" style="margin-top:10px;">
+        <!-- COMPASS MISSION CONFIG -->
+        <div class="card card-half">
+            <div class="section-title">Compass Mission Config</div>
+            <p style="font-size:12px; color:var(--text-muted);">
+                Mỗi dòng: <code>heading_deg, speed, duration</code> (độ, m/s, giây)
+            </p>
+            <pre>
+0, 1.0, 24
+90, 1.0, 35
+180, 1.0, 24
+            </pre>
+            <textarea id="compass-legs-input"
+                      placeholder="0, 1.0, 10&#10;90, 1.0, 15&#10;180, 1.0, 15"></textarea>
+            <div class="controls" style="margin-top:6px;">
+                <button id="update-compass-mission">Cập nhật Compass Mission</button>
+                <button id="start-compass-mission">Bay Compass Mission</button>
+            </div>
+            <p id="compass-mission-status" style="margin-top: 4px; font-size:12px;"></p>
+        </div>
+
+        <!-- ARUCO ID FILTER -->
+        <div class="card card-half">
+            <div class="section-title">ArUco ID Filter</div>
+            <div style="font-size:12px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <label for="aruco_ids">IDs (ví dụ: 3,5,7,10):</label>
+                <input type="text" id="aruco_ids" placeholder="3,5,7,10">
+                <button id="set_aruco_ids">Set IDs</button>
+            </div>
+            <p id="aruco_ids_status" style="margin-top: 4px; font-size:12px;">
+                Current ArUco IDs: ALL (default)
+            </p>
+        </div>
+    </div>
+
+    <!-- TELEMETRY / RECORD / ARUCO INFO -->
+    <div style="margin-top: 10px;">
+        <div class="info-panel">
+            <div class="info-item">
+                Altitude: <span id="alt">N/A</span> m
+            </div>
+            <div class="info-item">
+                Mode: <span id="mode">N/A</span>
+            </div>
+            <div class="info-item">
+                Velocity: <span id="velocity">N/A</span> m/s
+            </div>
+            <div class="info-item">
+                Distance: <span id="distance">0</span> m
+            </div>
+            <div class="info-item">
+                ArUco Markers: <span id="aruco-count">0</span> detected
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-item">
+                Recording: <span id="recording-status">No</span>
+            </div>
+            <div class="info-item">
+                Duration: <span id="recording-duration">0</span> s
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RECORDINGS MODAL -->
+<div id="recordings-modal">
+    <h3>Recorded Videos</h3>
+    <div id="recordings-list"></div>
+    <button id="close-recordings">Close</button>
+</div>
+<div id="modal-overlay"></div>
+
+<script>
+    const socket = io();
+
+    const map = L.map('map').setView([10.85095073, 106.77282902], 30);
+
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 22
+    });
+
+    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        attribution: '&copy; <a href="https://www.google.com/maps">Google</a>',
+        maxZoom: 22
+    });
+
+    const esriSat = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri',
+        maxZoom: 22
+    });
+
+    googleSat.addTo(map);
+    L.control.layers({
+        "OpenStreetMap": osm,
+        "Google Satellite": googleSat,
+        "Esri WorldImagery": esriSat
+    }).addTo(map);
+
+    let pathPolyline = null;
+    let jsonPathPolyline = null;
+    let droneMarker = null;
+    let homeMarker = null;
+    let flownPathPolyline = null;
+    const flownPath = [];
+
+    let gpsDataGlobal = null;
+    let selectedPoints = [];
+    let pointMarkers = [];
+
+    let arucoMarkers = {};
+    const arucoLayer = L.layerGroup().addTo(map);
+
+    let compassMissionSteps = [];
+    let compassMissionStep = { heading_deg: 0, speed: 1.0, duration: 3.0 };
+
+    let isRecording = false;
+    let recordingStartTime = 0;
+    let recordingInterval = null;
+
+    function getColorForStation(idx) {
+        const colors = ['red','orange','blue','green','purple','brown','darkcyan','magenta'];
+        return colors[idx % colors.length];
+    }
+
+    function refreshPointInfo() {
+        const infoEl = document.getElementById('point-info');
+        if (selectedPoints.length === 0) {
+            infoEl.innerHTML = 'Selected Points: None';
+            return;
+        }
+        const text = selectedPoints.map(p =>
+            `Point ${p.number}: Lat ${p.lat.toFixed(6)}, Lon ${p.lon.toFixed(6)}, Speed ${p.speed.toFixed(1)} m/s`
+        ).join('<br>');
+        infoEl.innerHTML = text;
+    }
+
+    function updateArucoMarkers(markersData) {
+        console.log('Updating ArUco markers:', markersData);
+        arucoLayer.clearLayers();
+        arucoMarkers = {};
+
+        for (const [markerId, info] of Object.entries(markersData)) {
+            if (!info) continue;
+
+            let lat, lon, isSelected;
+            if (Array.isArray(info) && info.length >= 2) {
+                lat = info[0];
+                lon = info[1];
+                isSelected = false;
+            } else {
+                lat = info.lat;
+                lon = info.lon;
+                isSelected = !!info.selected;
+            }
+
+            if (lat === undefined || lon === undefined) continue;
+
+            const color = isSelected ? '#22c55e' : '#f97316';
+            const borderColor = '#020617';
+
+            const marker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: 'aruco-marker',
+                    html: `
+                        <div style="
+                            background-color: ${color};
+                            color: #020617;
+                            border-radius: 50%;
+                            width: 24px;
+                            height: 24px;
+                            text-align: center;
+                            line-height: 24px;
+                            font-weight: bold;
+                            border: 2px solid ${borderColor};
+                        ">
+                            ${markerId}
+                        </div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(arucoLayer).bindPopup(
+                `ArUco Marker ID: ${markerId}<br>` +
+                `Lat: ${lat.toFixed(6)}<br>` +
+                `Lon: ${lon.toFixed(6)}<br>` +
+                `Selected: ${isSelected}`
+            );
+
+            arucoMarkers[markerId] = marker;
+        }
+        document.getElementById('aruco-count').textContent = Object.keys(markersData).length;
+    }
+
+    function addStationMarkers(gpsData) {
+        gpsDataGlobal = gpsData;
+        const controlsDiv = document.getElementById('station-buttons');
+
+        Object.keys(gpsData).forEach((stationName, idx) => {
+            const stationPoints = gpsData[stationName];
+            if (!stationPoints || !stationPoints.length) return;
+
+            const last = stationPoints[stationPoints.length - 1];
+            const marker = L.marker([last.lat, last.lon], {
+                icon: L.icon({ iconUrl: 'static/tracking.png', iconSize: [32,32], iconAnchor: [16,32] })
+            }).addTo(map).bindPopup(`Delivery ${stationName}`);
+
+            marker.on('click', function() {
+                if (jsonPathPolyline) map.removeLayer(jsonPathPolyline);
+                const jsonWaypoints = stationPoints.map(st => [st.lat, st.lon]);
+                jsonPathPolyline = L.polyline(jsonWaypoints, {color: getColorForStation(idx), dashArray: '5,5'}).addTo(map);
+                map.fitBounds(jsonPathPolyline.getBounds());
+            });
+
+            const btn = document.createElement('button');
+            btn.innerText = `Start ${stationName}`;
+            btn.onclick = function() {
+                fetch('/start_mission', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({station: stationName})
+                })
+                .then(res => res.json())
+                .then(data => console.log(`Start ${stationName} mission`, data));
+            };
+            controlsDiv.appendChild(btn);
+        });
+    }
+
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        const pointNumber = selectedPoints.length + 1;
+
+        let speedInput = prompt('Enter speed (m/s, default 0.7):', '0.7');
+        let speed = parseFloat(speedInput);
+        if (isNaN(speed) || speed <= 0) speed = 0.7;
+
+        const point = { lat: lat, lon: lon, number: pointNumber, speed: speed };
+        selectedPoints.push(point);
+
+        const marker = L.marker([lat, lon], {
+            draggable: true,
+            icon: L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-color:#38bdf8; color:#020617; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 24px; font-weight:600;">${pointNumber}</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(map).bindPopup(
+            `Point ${pointNumber}<br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}<br>Speed: ${speed.toFixed(1)} m/s`
+        );
+
+        marker.on('dragend', function(ev) {
+            const newLatLng = ev.target.getLatLng();
+            const idx = selectedPoints.findIndex(p => p.number === pointNumber);
+            if (idx !== -1) {
+                selectedPoints[idx].lat = newLatLng.lat;
+                selectedPoints[idx].lon = newLatLng.lng;
+            }
+            if (pathPolyline) map.removeLayer(pathPolyline);
+            pathPolyline = L.polyline(selectedPoints.map(p => [p.lat, p.lon]), {color: '#38bdf8'}).addTo(map);
+            refreshPointInfo();
+        });
+
+        marker.on('click', function() {
+            const idx = selectedPoints.findIndex(p => p.number === pointNumber);
+            const currentSpeed = idx !== -1 ? selectedPoints[idx].speed : speed;
+            const newSpeedInput = prompt(`Edit speed for Point ${pointNumber} (current: ${currentSpeed.toFixed(1)} m/s):`, currentSpeed.toString());
+            const newSpeed = parseFloat(newSpeedInput);
+            if (!isNaN(newSpeed) && newSpeed > 0) {
+                if (idx !== -1) {
+                    selectedPoints[idx].speed = newSpeed;
+                }
+                marker.bindPopup(
+                    `Point ${pointNumber}<br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}<br>Speed: ${newSpeed.toFixed(1)} m/s`
+                );
+                refreshPointInfo();
+            }
+        });
+
+        pointMarkers.push(marker);
+
+        if (pathPolyline) map.removeLayer(pathPolyline);
+        pathPolyline = L.polyline(selectedPoints.map(p => [p.lat, p.lon]), {color: '#38bdf8'}).addTo(map);
+        refreshPointInfo();
+    });
+
+    fetch('/get_gps_stations')
+        .then(res => res.json())
+        .then(gpsData => addStationMarkers(gpsData));
+
+    fetch('/get_aruco_markers')
+        .then(res => res.json())
+        .then(markers => updateArucoMarkers(markers))
+        .catch(err => console.error('Error loading ArUco markers:', err));
+
+    document.getElementById('clear').onclick = function() {
+        selectedPoints = [];
+        pointMarkers.forEach(m => map.removeLayer(m));
+        pointMarkers = [];
+        if (pathPolyline) map.removeLayer(pathPolyline);
+        refreshPointInfo();
+    };
+
+    document.getElementById('fly').onclick = function() {
+        fetch('/fly', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({lat: 10.85095073, lon: 106.77282902})
+        })
+        .then(res => res.json())
+        .then(data => console.log('Fly mission started', data));
+    };
+
+    document.getElementById('fly-selected').onclick = function() {
+        if (selectedPoints.length === 0) {
+            alert('No points selected');
+            return;
+        }
+        fetch('/fly_selected', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({points: selectedPoints})
+        })
+        .then(res => res.json())
+        .then(data => console.log('Fly selected points mission started', data));
+    };
+
+    document.getElementById('land').onclick = function() {
+        socket.emit('change_mode', {mode: 'LAND'});
+    };
+
+    document.getElementById('guided').onclick = function() {
+        socket.emit('change_mode', {mode: 'GUIDED'});
+    };
+
+    document.getElementById('arm').onclick = function() {
+        fetch('/arm', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'armed') {
+                console.log('Drone armed successfully', data);
+                alert('Drone armed successfully!');
+            } else {
+                console.error('Failed to arm drone', data);
+                alert('Failed to arm drone: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Error arming drone:', err);
+            alert('Error arming drone');
+        });
+    };
+
+    document.getElementById('return-home').onclick = function() {
+        fetch('/return_home', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => console.log('Returning home', data));
+    };
+
+    document.getElementById('start-aruco').onclick = function() {
+        fetch('/start_aruco_detection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('ArUco detection started!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    };
+
+    document.getElementById('stop-aruco').onclick = function() {
+        fetch('/stop_aruco_detection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('ArUco detection stopped!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    };
+
+    document.getElementById('clear-aruco').onclick = function() {
+        fetch('/clear_aruco_markers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('Clear ArUco response:', data);
+            arucoLayer.clearLayers();
+            arucoMarkers = {};
+            document.getElementById('aruco-count').textContent = '0';
+        })
+        .catch(err => console.error('Error clearing ArUco markers:', err));
+    };
+
+    document.getElementById('set_aruco_ids').onclick = function () {
+        const input = document.getElementById('aruco_ids').value.trim();
+        if (!input) {
+            alert('Nhập ít nhất 1 ID, ví dụ: 3,5,7');
+            return;
+        }
+        const ids = input.split(/[,\s]+/)
+            .map(s => s.trim())
+            .filter(s => s !== '')
+            .map(Number)
+            .filter(n => Number.isInteger(n));
+
+        if (ids.length === 0) {
+            alert('Không có ID hợp lệ. Vui lòng nhập số nguyên.');
+            return;
+        }
+
+        fetch('/set_aruco_ids', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('Set ArUco IDs response:', data);
+            if (data.status === 'success') {
+                document.getElementById('aruco_ids_status').textContent =
+                    'Current ArUco IDs: ' + ids.join(', ');
+                alert('Updated ArUco IDs: ' + ids.join(', '));
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Error calling /set_aruco_ids:', err);
+            alert('Error calling /set_aruco_ids (check console)');
+        });
+    };
+
+    document.getElementById('start-record').onclick = function() {
+        fetch('/start_recording', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                isRecording = true;
+                recordingStartTime = Date.now();
+                document.getElementById('start-record').disabled = true;
+                document.getElementById('stop-record').disabled = false;
+                document.getElementById('recording-status').textContent = 'Yes';
+                document.getElementById('recording-status').style.color = '#f97316';
+
+                recordingInterval = setInterval(() => {
+                    const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+                    document.getElementById('recording-duration').textContent = duration;
+                }, 1000);
+
+                alert('Recording started: ' + data.filename);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(err => {
+            console.error('Error starting recording:', err);
+            alert('Error starting recording');
+        });
+    };
+
+    document.getElementById('stop-record').onclick = function() {
+        fetch('/stop_recording', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                isRecording = false;
+                document.getElementById('start-record').disabled = false;
+                document.getElementById('stop-record').disabled = true;
+                document.getElementById('recording-status').textContent = 'No';
+                document.getElementById('recording-status').style.color = 'var(--text-main)';
+                document.getElementById('recording-duration').textContent = '0';
+
+                if (recordingInterval) {
+                    clearInterval(recordingInterval);
+                    recordingInterval = null;
+                }
+
+                alert('Recording stopped. Duration: ' + data.duration.toFixed(2) + 's');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(err => {
+            console.error('Error stopping recording:', err);
+            alert('Error stopping recording');
+        });
+    };
+
+    document.getElementById('view-recordings').onclick = function() {
+        fetch('/get_recordings')
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById('recordings-list');
+                list.innerHTML = '';
+
+                if (data.recordings && data.recordings.length > 0) {
+                    data.recordings.forEach(recording => {
+                        const item = document.createElement('div');
+                        item.style.padding = '6px';
+                        item.style.borderBottom = '1px solid #1f2937';
+                        item.innerHTML = `
+                            <strong>${recording.filename}</strong><br>
+                            <span style="color:#9ca3af;">Size: ${recording.size_mb} MB</span>
+                            <button onclick="window.open('/recordings/${recording.filename}', '_blank')"
+                                    style="float:right; padding:3px 8px; margin-top:2px; background:#22c55e; color:#022c22; border:none; border-radius:999px; font-size:11px; cursor:pointer;">
+                                Download
+                            </button>
+                        `;
+                        list.appendChild(item);
+                    });
+                } else {
+                    list.innerHTML = '<p>No recordings found</p>';
+                }
+
+                document.getElementById('recordings-modal').style.display = 'block';
+                document.getElementById('modal-overlay').style.display = 'block';
+            })
+            .catch(err => {
+                console.error('Error loading recordings:', err);
+                alert('Error loading recordings');
+            });
+    };
+
+    document.getElementById('close-recordings').onclick = function() {
+        document.getElementById('recordings-modal').style.display = 'none';
+        document.getElementById('modal-overlay').style.display = 'none';
+    };
+
+    document.getElementById('update-compass-mission').onclick = function () {
+        const txt = document.getElementById('compass-legs-input').value.trim();
+        const statusEl = document.getElementById('compass-mission-status');
+
+        if (!txt) {
+            alert('Hãy nhập ít nhất 1 dòng: heading_deg, speed, duration');
+            return;
+        }
+
+        const lines = txt.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const steps = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const parts = line.split(/[,\s]+/).map(s => s.trim()).filter(s => s.length > 0);
+            if (parts.length < 3) {
+                alert(`Dòng ${i + 1} không hợp lệ. Định dạng: heading_deg, speed, duration`);
+                return;
+            }
+            const heading = parseFloat(parts[0]);
+            const speed = parseFloat(parts[1]);
+            const duration = parseFloat(parts[2]);
+
+            if (isNaN(heading) || isNaN(speed) || isNaN(duration)) {
+                alert(`Dòng ${i + 1} có giá trị không phải số`);
+                return;
+            }
+            steps.push({ heading_deg: heading, speed: speed, duration: duration });
+        }
+
+        if (steps.length === 0) {
+            alert('Không có step nào hợp lệ');
+            return;
+        }
+
+        compassMissionSteps = steps;
+        compassMissionStep = steps[0];
+
+        fetch('/set_compass_mission', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ steps: compassMissionSteps })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('set_compass_mission response:', data);
+            if (data.error) {
+                alert('Lỗi: ' + data.error);
+                statusEl.textContent = 'Lỗi cập nhật mission: ' + data.error;
+                statusEl.style.color = '#f97316';
+            } else {
+                alert('Đã cập nhật Compass Mission (' + compassMissionSteps.length + ' bước)');
+                statusEl.textContent = 'Đã cập nhật ' + compassMissionSteps.length + ' bước.';
+                statusEl.style.color = '#22c55e';
+            }
+        })
+        .catch(err => {
+            console.error('Error calling /set_compass_mission:', err);
+            alert('Lỗi gọi /set_compass_mission');
+            statusEl.textContent = 'Lỗi gọi /set_compass_mission (xem console)';
+            statusEl.style.color = '#f97316';
+        });
+    };
+
+    document.getElementById('start-compass-mission').onclick = function () {
+        const statusEl = document.getElementById('compass-mission-status');
+
+        if (!compassMissionSteps || compassMissionSteps.length === 0) {
+            alert('Chưa có Compass Mission. Hãy bấm "Cập nhật Compass Mission" trước.');
+            return;
+        }
+
+        fetch('/run_compass_mission', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                steps: compassMissionSteps,
+                auto_takeoff: true,
+                land_at_end: true
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('run_compass_mission response:', data);
+            if (data.error) {
+                alert('Lỗi: ' + data.error);
+                statusEl.textContent = 'Lỗi chạy mission: ' + data.error;
+                statusEl.style.color = '#f97316';
+            } else {
+                alert('Bắt đầu bay Compass Mission (' + compassMissionSteps.length + ' bước)');
+                statusEl.textContent = 'Đang bay Compass Mission...';
+                statusEl.style.color = '#60a5fa';
+            }
+        })
+        .catch(err => {
+            console.error('Error calling /run_compass_mission:', err);
+            alert('Lỗi gọi /run_compass_mission');
+            statusEl.textContent = 'Lỗi gọi /run_compass_mission (xem console)';
+            statusEl.style.color = '#f97316';
+        });
+    };
+
+    document.getElementById('set-speed').onclick = function() {
+        const speed = parseFloat(document.getElementById('speed-select').value);
+        fetch('/set_speed', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({speed: speed})
+        })
+        .then(res => res.json())
+        .then(data => console.log('Speed set to', speed, data))
+        .catch(err => console.error('Error /set_speed:', err));
+    };
+
+    let isZoomed = false;
+    const cameraImg = document.getElementById('live-camera');
+    const zoomBtn = document.getElementById('zoom-btn');
+
+    zoomBtn.addEventListener('click', () => {
+        if (!isZoomed) {
+            cameraImg.style.position = 'fixed';
+            cameraImg.style.top = '50%';
+            cameraImg.style.left = '50%';
+            cameraImg.style.transform = 'translate(-50%, -50%)';
+            cameraImg.style.width = '90vw';
+            cameraImg.style.height = 'auto';
+            cameraImg.style.zIndex = '9999';
+            cameraImg.style.boxShadow = '0 0 30px rgba(0,0,0,0.9)';
+            zoomBtn.textContent = '🔙 Thu nhỏ';
+            isZoomed = true;
+        } else {
+            cameraImg.style.position = '';
+            cameraImg.style.top = '';
+            cameraImg.style.left = '';
+            cameraImg.style.transform = '';
+            cameraImg.style.width = '640px';
+            cameraImg.style.height = '480px';
+            cameraImg.style.zIndex = '';
+            cameraImg.style.boxShadow = '';
+            zoomBtn.textContent = '🔍 Phóng to';
+            isZoomed = false;
+        }
+    });
+
+    socket.on('aruco_markers_update', function(data) {
+        console.log('Received ArUco markers:', data.markers);
+        updateArucoMarkers(data.markers);
+    });
+
+    socket.on('telemetry', function(data) {
+        console.log('Telemetry received:', data);
+
+        if (data.error) {
+            console.error('Telemetry error:', data.error);
+            return;
+        }
+
+        if (data.lat && data.lon) {
+            if (!droneMarker) {
+                droneMarker = L.marker([data.lat, data.lon], {
+                    icon: L.icon({
+                        iconUrl: 'static/drone.png',
+                        iconSize: [32,32],
+                        iconAnchor: [16,16]
+                    })
+                }).addTo(map).bindPopup('Drone');
+                map.setView([data.lat, data.lon], 30);
+            } else {
+                droneMarker.setLatLng([data.lat, data.lon]);
+            }
+
+            if (!homeMarker) {
+                homeMarker = L.marker([data.lat, data.lon], {
+                    icon: L.icon({
+                        iconUrl: 'static/home.png',
+                        iconSize: [32,32],
+                        iconAnchor: [16,32]
+                    })
+                }).addTo(map).bindPopup('Home');
+            }
+
+            flownPath.push([data.lat, data.lon]);
+            if (!flownPathPolyline) {
+                flownPathPolyline = L.polyline(flownPath, {color: '#f97316', weight: 3}).addTo(map);
+            } else {
+                flownPathPolyline.setLatLngs(flownPath);
+            }
+        }
+
+        document.getElementById('alt').innerText =
+            data.alt !== undefined ? data.alt.toFixed(2) : 'N/A';
+        document.getElementById('mode').innerText = data.mode || 'N/A';
+        document.getElementById('velocity').innerText =
+            data.velocity !== undefined ? data.velocity.toFixed(2) : 'N/A';
+        document.getElementById('distance').innerText =
+            data.distance_traveled !== undefined ? data.distance_traveled.toFixed(2) : '0';
+    });
+
+    socket.on('planned_path', function(data) {
+        if (pathPolyline) map.removeLayer(pathPolyline);
+        pathPolyline = L.polyline(data.waypoints, {color: '#38bdf8'}).addTo(map);
+        map.fitBounds(pathPolyline.getBounds());
+    });
+
+    socket.on('mission_status', function(data) {
+        console.log('Mission status:', data);
+        if (data.status === 'completed') {
+            alert('Mission completed!');
+        } else if (data.status === 'error') {
+            alert('Error: ' + data.error);
+        }
+    });
+
+    socket.on('recording_status', function(data) {
+        console.log('Recording status:', data);
+    });
+</script>
+</body>
+</html>

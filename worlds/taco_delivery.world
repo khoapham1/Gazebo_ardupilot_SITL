@@ -1,0 +1,261 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="taco_world">
+
+    <!-- Wind environment -->
+    <wind>
+      <linear_velocity>11 11 0</linear_velocity>
+    </wind>
+
+    <!-- Scene config -->
+    <scene>
+      <shadows>false</shadows>
+    </scene>
+
+    <!-- GUI camera -->
+    <gui>
+      <camera name="user_camera">
+        <!-- posX posY posZ roll pitch yaw -->
+        <pose>-10 -10 5 0 0.5 0.8</pose>
+      </camera>
+    </gui>
+
+    <!-- Physics -->
+    <physics type="ode">
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>100</iters>
+          <sor>1.0</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>0.1</contact_max_correcting_vel>
+          <contact_surface_layer>0.0</contact_surface_layer>
+        </constraints>
+      </ode>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+
+    <!-- Gravity -->
+    <gravity>0 0 -9.8</gravity>
+
+    <!-- Sun -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Ground plane + visuals -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+
+        <!-- Collision -->
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>5000 5000</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>100</mu>
+                <mu2>50</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+
+        <!-- Grass background -->
+        <visual name="background">
+          <pose>0 0 -0.1 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>600 600</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grass</name>
+            </script>
+          </material>
+        </visual>
+        <!-- <visual name="background">
+          <pose>0 0 -0.1 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>200 200</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0 0 0 1</ambient>   
+            <diffuse>0 0 0 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+          </material>
+        </visual> -->
+
+        <!-- ArUco markers -->
+        <visual name="aruco1">
+          <pose>0 0 0.005 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.6 0.6</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo2.material</uri>
+              <name>Gazebo/Aruco1</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco2">
+          <pose>0.08 0.02 0.006 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.1 0.1</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Aruco2</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco3">
+          <pose>25 0 0.005 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.6 0.6</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo2.material</uri>
+              <name>Gazebo/Aruco1</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco4">
+          <pose>25 -0.5 0.004 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Aruco2</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco5">
+          <pose>119 13 0.005 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.6 0.6</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo2.material</uri>
+              <name>Gazebo/Aruco1</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco6">
+          <pose>119.08 13.007 0.006 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.1 0.1</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Aruco2</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco7">
+          <pose>-4 -125 0.005 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.6 0.6</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo2.material</uri>
+              <name>Gazebo/Aruco1</name>
+            </script>
+          </material>
+        </visual>
+
+        <visual name="aruco8">
+          <pose>-4.09 -125.009 0.006 0 0 -1.5708</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.1 0.1</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Aruco2</name>
+            </script>
+          </material>
+        </visual>
+
+        <!-- Taco delivery area -->
+        <visual name="taco_zone">
+          <pose>22 0 0.004 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>3 3</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo2.material</uri>
+              <name>Gazebo/Taco</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Drone model -->
+    <model name="iris_demo_test">
+      <enable_wind>true</enable_wind>
+      <include>
+        <uri>model://iris_with_ardupilot</uri>
+      </include>
+    </model>
+
+  </world>
+</sdf>

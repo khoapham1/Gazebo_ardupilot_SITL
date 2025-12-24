@@ -1,0 +1,163 @@
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <world name="taco_world">
+
+    <!-- Scene config -->
+    <scene>
+      <shadows>false</shadows>
+    </scene>
+
+    <!-- GUI camera -->
+    <gui>
+      <camera name="user_camera">
+        <!-- posX posY posZ roll pitch yaw -->
+        <pose>-10 -10 5 0 0.5 0.8</pose>
+      </camera>
+    </gui>
+
+    <!-- Physics -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <latitude_deg>47.333439</latitude_deg>
+      <longitude_deg>8.547097</longitude_deg>
+      <elevation>1.7</elevation>
+    </spherical_coordinates>
+    <physics type="ode">
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>100</iters>
+          <sor>1.0</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>0.1</contact_max_correcting_vel>
+          <contact_surface_layer>0.0</contact_surface_layer>
+        </constraints>
+      </ode>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+
+    <!-- Gravity -->
+    <gravity>0 0 -9.8</gravity>
+
+    <!-- Sun -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <include>
+      <uri>model://ocean</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- add model person_walking -->
+    <include>
+      <uri>model://person_standing</uri>
+      <name>person_walking_1</name>
+      <pose>15 4 -1 0 0 -1.57</pose>
+    </include>
+
+    <include>
+      <uri>model://person_standing</uri>
+      <name>person_walking_2</name>
+      <pose>14 1 -1 0 0 -1.57</pose>
+    </include>
+
+    <include>
+      <uri>model://person_standing</uri>
+      <name>person_walking_3</name>
+      <pose>21 3 -1 0 0 -1.57</pose>
+    </include>
+
+    <include>
+      <uri>model://person_standing</uri>
+      <name>person_4</name>
+      <pose>24 0 -1 0 0 -1.57</pose>
+    </include>
+
+
+    <model name="uav_landing_platform">
+      <static>true</static>
+
+      <pose>0 0 0.05 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>10 10 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>10 10 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="line_person_walk">
+      <static>true</static>
+
+      <pose>0 0 -1 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>50 50 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>50 50 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="iris_demo_test">
+      <!-- <enable_wind>true</enable_wind> -->
+      <include>
+        <uri>model://iris_with_ardupilot</uri>
+      </include>
+    </model>
+
+  </world>
+</sdf>

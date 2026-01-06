@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Drone Control - Person in Water Detection</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        :root{
+            --bg-main: #020617;
+            --bg-card: #0f172a;
+            --bg-soft: #111827;
+            --border-soft: #1f2937;
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --accent: #2563eb;
+            --accent-soft: #1d4ed8;
+            --danger: #dc2626;
+        }
+
+        *{ box-sizing: border-box; }
+
+        body{
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #1e293b 0, var(--bg-main) 45%);
+            color: var(--text-main);
+        }
+
+        header{
+            background: #020617;
+            border-bottom: 1px solid #1f2937;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1{ font-size: 18px; margin: 0; }
+        header span{ font-size: 12px; color: var(--text-muted); }
+
+        #top-status{
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #16a34a33;
+            color: #4ade80;
+            border: 1px solid #16a34a;
+        }
+
+        .main-container{ padding: 12px 16px 24px 16px; }
+
+        .row{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .card{
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 10px 12px 12px 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+            border: 1px solid var(--border-soft);
+        }
+
+        .card-half{
+            flex: 1 1 320px;
+        }
+
+        .left-camera{ flex: 1 1 360px; }
+        .right-map{ flex: 2 1 460px; }
+
+        .section-title{
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        #map{
+            height: 400px;
+            width: 100%;
+            background-color: #020617;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #camera-container{ position: relative; display: inline-block; }
+
+        #live-camera{
+            width: 640px;
+            height: 480px;
+            cursor: pointer;
+            border-radius: 8px;
+            background: #000;
+            object-fit: cover;
+            border: 1px solid #1f2937;
+        }
+
+        #zoom-btn{
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(15,23,42,0.85);
+            color: var(--text-main);
+            border: 1px solid #1f2937;
+            border-radius: 999px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .controls{
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .controls button,
+        .controls select{
+            padding: 5px 9px;
+            font-size: 12px;
+            border-radius: 999px;
+            border: 1px solid var(--accent-soft);
+            background-color: var(--accent-soft);
+            color: #e5e7eb;
+            cursor: pointer;
+            transition: background-color .15s, transform .1s;
+        }
+        .controls button:hover{
+            background-color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .controls select{
+            background: var(--bg-soft);
+            border-color: var(--border-soft);
+            color: var(--text-main);
+        }
+
+        .controls button#land,
+        .controls button#stop-record{
+            border-color: var(--danger);
+            background: #b91c1c;
+        }
+        .controls button#land:hover,
+        .controls button#stop-record:hover{
+            background: #dc2626;
+        }
+
+        .info-panel{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .info-item{
+            background-color: var(--bg-card);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-soft);
+            font-size: 13px;
+        }
+        .info-item span{ color: #fbbf24; }
+
+        #point-info{
+            margin-top: 8px;
+            padding: 6px 8px;
+            background-color: var(--bg-soft);
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid var(--border-soft);
+        }
+
+        #compass-legs-input{
+            width: 100%;
+            height: 110px;
+            background: var(--bg-soft);
+            color: var(--text-main);
+            border-radius: 6px;
+            border: 1px solid var(--border-soft);
+            font-size: 12px;
+            padding: 6px;
+            resize: vertical;
+        }
+
+        pre{
+            background: var(--bg-soft);
+            color: var(--text-muted);
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 11px;
+            border: 1px dashed #1f2937;
+        }
+
+        input[type="text"]{
+            background: var(--bg-soft);
+            color: var(--text-main);
+            border-radius: 999px;
+            border: 1px solid var(--border-soft);
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        /* Style cho detection zones */
+        .detection-popup {
+            font-weight: bold;
+            color: #ff0000;
+        }
+        
+        .aruco-marker{
+            background-color: #f97316;
+            border: 2px solid #020617;
+            border-radius: 50%;
+            color: #020617;
+            font-weight: bold;
+            text-align: center;
+            line-height: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- CAMERA + MAP -->
+        <div class="row">
+            <div class="card left-camera">
+                <div class="section-title">Live Camera - Person Detection</div>
+                <div id="camera-container">
+                    <img id="live-camera"
+                         src="/video_feed"
+                         alt="Live UAV Camera"
+                         onerror="this.src='placeholder.jpg'; console.log('Stream error');">
+                    <button id="zoom-btn">🔍 Zoom</button>
+                </div>
+            </div>
+
+            <div class="card right-map">
+                <div class="section-title">Map - Detection Zones</div>
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTROLS -->
+        <div class="card" style="margin-top: 10px;">
+            <div class="section-title">Person Detection Controls</div>
+            <div class="controls" id="detection-buttons">
+                <button id="clear">Clear points</button>
+                <button id="fly-with-detection">Fly with Detection</button>
+                <button id="start-detection">Start Detection</button>
+                <button id="stop-detection">Stop Detection</button>
+                <button id="clear-detections">Clear Detections</button>
+                <button id="land">Land</button>
+                <button id="return-home">Return Home</button>
+                <button id="arm">Arm Drone</button>
+                <button id="guided">GUIDED</button>
+                
+                <select id="speed-select">
+                    <option value="0.7">0.7 m/s</option>
+                    <option value="1.0">1.0 m/s</option>
+                    <option value="2.0">2.0 m/s</option>
+                    <option value="3.0">3.0 m/s</option>
+                </select>
+                <button id="set-speed">Set Speed</button>
+            </div>
+            <div id="detection-info">Detections: <span id="detection-count">0</span></div>
+        </div>
+
+        <!-- TELEMETRY -->
+        <div style="margin-top: 10px;">
+            <div class="info-panel">
+                <div class="info-item">
+                    Altitude: <span id="alt">N/A</span> m
+                </div>
+                <div class="info-item">
+                    Mode: <span id="mode">N/A</span>
+                </div>
+                <div class="info-item">
+                    Velocity: <span id="velocity">N/A</span> m/s
+                </div>
+                <div class="info-item">
+                    Distance: <span id="distance">0</span> m
+                </div>
+                <div class="info-item">
+                    Detections: <span id="detection-count-display">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const socket = io();
+    const map = L.map('map').setView([10.85095073, 106.77282902], 30);
+    
+    // Tile layers
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 22
+    });
+
+    const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        attribution: '&copy; <a href="https://www.google.com/maps">Google</a>',
+        maxZoom: 22
+    });
+
+    const esriSat = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri',
+        maxZoom: 22
+    });
+
+    googleSat.addTo(map);
+    
+    L.control.layers({
+        "OpenStreetMap": osm,
+        "Google Satellite": googleSat,
+        "Esri WorldImagery": esriSat
+    }).addTo(map);
+
+    // Variables
+    let personDetections = {};
+    let detectionLayer = L.layerGroup().addTo(map);
+    let selectedPoints = [];
+    let pointMarkers = [];
+    let pathPolyline = null;
+    let droneMarker = null;
+    let homeMarker = null;
+    let flownPath = [];
+    let flownPathPolyline = null;
+
+    // Cập nhật detection zones trên map
+    function updateDetectionZone(detection) {
+        const { lat, lon, radius, confidence, id } = detection;
+        
+        // Tạo circle (vùng đỏ)
+        const circle = L.circle([lat, lon], {
+            radius: radius * 1000, // Convert km to meters
+            className: 'detection-zone',
+            color: '#ff0000',
+            weight: 3,
+            opacity: 0.7,
+            fillColor: '#ff0000',
+            fillOpacity: 0.3
+        }).addTo(detectionLayer);
+        
+        // Thêm popup thông tin
+        circle.bindPopup(`
+            <div class="detection-popup">
+                <strong>🚨 PERSON IN WATER DETECTED</strong><br>
+                Confidence: ${(confidence * 100).toFixed(1)}%<br>
+                Radius: ${radius.toFixed(1)}m<br>
+                Time: ${new Date().toLocaleTimeString()}<br>
+                ID: ${id}
+            </div>
+        `);
+        
+        // Lưu vào danh sách
+        personDetections[id] = circle;
+        
+        // Cập nhật counter
+        updateDetectionCounter();
+        
+        // Zoom to detection nếu là detection đầu tiên
+        if (Object.keys(personDetections).length === 1) {
+            map.setView([lat, lon], 18);
+        }
+    }
+
+    function updateDetectionCounter() {
+        const count = Object.keys(personDetections).length;
+        document.getElementById('detection-count').textContent = count;
+        document.getElementById('detection-count-display').textContent = count;
+    }
+
+    function clearAllDetections() {
+        detectionLayer.clearLayers();
+        personDetections = {};
+        updateDetectionCounter();
+    }
+
+    // Button handlers
+    document.getElementById('start-detection').onclick = function() {
+        fetch('/start_person_detection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Person detection started!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    };
+
+    document.getElementById('stop-detection').onclick = function() {
+        fetch('/stop_person_detection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Person detection stopped!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    };
+
+    document.getElementById('clear-detections').onclick = function() {
+        fetch('/clear_person_detections', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            clearAllDetections();
+            alert('All detections cleared!');
+        });
+    };
+
+    document.getElementById('fly-with-detection').onclick = function() {
+        if (selectedPoints.length === 0) {
+            alert('Please select points on the map first');
+            return;
+        }
+        
+        fetch('/fly_with_person_detection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({points: selectedPoints})
+        })
+        .then(res => res.json())
+        .then(data => {
+            console.log('Mission started with person detection', data);
+            alert('Mission started! Drone will detect persons in water along the route.');
+        });
+    };
+
+    document.getElementById('land').onclick = function() {
+        socket.emit('change_mode', {mode: 'LAND'});
+    };
+
+    document.getElementById('guided').onclick = function() {
+        socket.emit('change_mode', {mode: 'GUIDED'});
+    };
+
+    document.getElementById('arm').onclick = function() {
+        fetch('/arm', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'armed') {
+                console.log('Drone armed successfully', data);
+                alert('Drone armed successfully!');
+            } else {
+                console.error('Failed to arm drone', data);
+                alert('Failed to arm drone: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Error arming drone:', err);
+            alert('Error arming drone');
+        });
+    };
+
+    document.getElementById('return-home').onclick = function() {
+        fetch('/return_home', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => console.log('Returning home', data));
+    };
+
+    document.getElementById('clear').onclick = function() {
+        selectedPoints = [];
+        pointMarkers.forEach(m => map.removeLayer(m));
+        pointMarkers = [];
+        if (pathPolyline) map.removeLayer(pathPolyline);
+    };
+
+    document.getElementById('set-speed').onclick = function() {
+        const speed = parseFloat(document.getElementById('speed-select').value);
+        fetch('/set_speed', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({speed: speed})
+        })
+        .then(res => res.json())
+        .then(data => console.log('Speed set to', speed, data))
+        .catch(err => console.error('Error /set_speed:', err));
+    };
+
+    // Map click handler để chọn waypoints
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        const pointNumber = selectedPoints.length + 1;
+
+        const point = { lat: lat, lon: lon, number: pointNumber };
+        selectedPoints.push(point);
+
+        const marker = L.marker([lat, lon], {
+            draggable: true,
+            icon: L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-color:#38bdf8; color:#020617; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 24px; font-weight:600;">${pointNumber}</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(map).bindPopup(`Point ${pointNumber}<br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`);
+
+        marker.on('dragend', function(ev) {
+            const newLatLng = ev.target.getLatLng();
+            const idx = selectedPoints.findIndex(p => p.number === pointNumber);
+            if (idx !== -1) {
+                selectedPoints[idx].lat = newLatLng.lat;
+                selectedPoints[idx].lon = newLatLng.lng;
+            }
+            if (pathPolyline) map.removeLayer(pathPolyline);
+            pathPolyline = L.polyline(selectedPoints.map(p => [p.lat, p.lon]), {color: '#38bdf8'}).addTo(map);
+        });
+
+        pointMarkers.push(marker);
+
+        if (pathPolyline) map.removeLayer(pathPolyline);
+        pathPolyline = L.polyline(selectedPoints.map(p => [p.lat, p.lon]), {color: '#38bdf8'}).addTo(map);
+    });
+
+    // Socket events
+    socket.on('person_detection_update', function(data) {
+        console.log('Person detection received:', data.detection);
+        updateDetectionZone(data.detection);
+        
+        // Hiển thị alert
+        const detection = data.detection;
+        alert(`🚨 PERSON IN WATER DETECTED!\nLocation: ${detection.lat.toFixed(6)}, ${detection.lon.toFixed(6)}\nConfidence: ${(detection.confidence * 100).toFixed(1)}%`);
+    });
+
+    socket.on('person_detections_cleared', function() {
+        clearAllDetections();
+    });
+
+    socket.on('telemetry', function(data) {
+        if (data.lat && data.lon) {
+            if (!droneMarker) {
+                droneMarker = L.marker([data.lat, data.lon], {
+                    icon: L.icon({ iconUrl: 'static/drone.png', iconSize: [32,32], iconAnchor: [16,16] })
+                }).addTo(map).bindPopup('Drone');
+                map.setView([data.lat, data.lon], 30);
+            } else {
+                droneMarker.setLatLng([data.lat, data.lon]);
+            }
+
+            if (!homeMarker) {
+                homeMarker = L.marker([data.lat, data.lon], {
+                    icon: L.icon({ iconUrl: 'static/home.png', iconSize: [32,32], iconAnchor: [16,32] })
+                }).addTo(map).bindPopup('Home');
+            }
+
+            flownPath.push([data.lat, data.lon]);
+            if (!flownPathPolyline) {
+                flownPathPolyline = L.polyline(flownPath, {color: '#f97316', weight: 3}).addTo(map);
+            } else {
+                flownPathPolyline.setLatLngs(flownPath);
+            }
+        }
+
+        document.getElementById('alt').innerText = data.alt !== undefined ? data.alt.toFixed(2) : 'N/A';
+        document.getElementById('mode').innerText = data.mode || 'N/A';
+        document.getElementById('velocity').innerText = data.velocity !== undefined ? data.velocity.toFixed(2) : 'N/A';
+        document.getElementById('distance').innerText = data.distance_traveled !== undefined ? data.distance_traveled.toFixed(2) : '0';
+    });
+
+    socket.on('planned_path', function(data) {
+        if (pathPolyline) map.removeLayer(pathPolyline);
+        pathPolyline = L.polyline(data.waypoints, {color: '#38bdf8'}).addTo(map);
+        map.fitBounds(pathPolyline.getBounds());
+    });
+
+    socket.on('mission_status', function(data) {
+        console.log('Mission status:', data);
+        if (data.status === 'completed') {
+            alert('Mission completed!');
+        } else if (data.status === 'error') {
+            alert('Error: ' + data.error);
+        }
+    });
+
+    // Load existing detections
+    fetch('/get_person_detections')
+        .then(res => res.json())
+        .then(detections => {
+            Object.values(detections).forEach(detection => {
+                updateDetectionZone(detection);
+            });
+        });
+
+    // Zoom camera function
+    let isZoomed = false;
+    const cameraImg = document.getElementById('live-camera');
+    const zoomBtn = document.getElementById('zoom-btn');
+
+    zoomBtn.addEventListener('click', () => {
+        if (!isZoomed) {
+            cameraImg.style.position = 'fixed';
+            cameraImg.style.top = '50%';
+            cameraImg.style.left = '50%';
+            cameraImg.style.transform = 'translate(-50%, -50%)';
+            cameraImg.style.width = '90vw';
+            cameraImg.style.height = 'auto';
+            cameraImg.style.zIndex = '9999';
+            cameraImg.style.boxShadow = '0 0 30px rgba(0,0,0,0.9)';
+            zoomBtn.textContent = '🔙 Thu nhỏ';
+            isZoomed = true;
+        } else {
+            cameraImg.style.position = '';
+            cameraImg.style.top = '';
+            cameraImg.style.left = '';
+            cameraImg.style.transform = '';
+            cameraImg.style.width = '640px';
+            cameraImg.style.height = '480px';
+            cameraImg.style.zIndex = '';
+            cameraImg.style.boxShadow = '';
+            zoomBtn.textContent = '🔍 Phóng to';
+            isZoomed = false;
+        }
+    });
+</script>
+</body>
+</html>
